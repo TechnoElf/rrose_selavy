@@ -14,13 +14,49 @@ const float MIN_DIST = 0.0;
 const float MAX_DIST = 100.0;
 const float EPSILON = 0.0001;
 const float ASPECT_RATIO_FACTOR = 3.0/2.0;
-const float FIELD_OF_VIEW = 45.0;
+const float FIELD_OF_VIEW = 25.0;
 
-float sdf_sphere(vec3 p) {
-    return length(p) - 1.0;
+vec3 p_rotate_x(vec3 p, float t) {
+    mat3 r = mat3(
+        1.0, 0.0, 0.0,
+        0.0, cos(t), sin(t),
+        0.0, -sin(t), cos(t)
+    );
+    return r * p;
 }
 
-float sdf_union(float a, float b) {
+vec3 p_rotate_y(vec3 p, float t) {
+    mat3 r = mat3(
+        cos(t), 0.0, sin(t),
+        0.0, 1.0, 0.0,
+        -sin(t), 0.0, cos(t)
+    );
+    return r * p;
+}
+
+vec3 p_rotate_z(vec3 p, float t) {
+    mat3 r = mat3(
+        cos(t), sin(t), 0.0,
+        -sin(t), cos(t), 0.0,
+        0.0, 0.0, 1.0
+    );
+    return r * p;
+}
+
+vec3 p_translate(vec3 p, vec3 t) {
+    return p - t;
+}
+
+float sdf_sphere(vec3 p, float r) {
+    return length(p) - r;
+}
+
+float sdf_cylinder(vec3 p, float r, float h, float ra) {
+    return min(max(length(p.xy) - r + ra, abs(p.z) - h), 0.0) + length(vec2(max(length(p.xy) - r + ra, 0.0), max(abs(p.z) - h, 0.0))) - ra;
+}
+
+float sdf_union(float a, uint ma, float b, uint mb, out uint m) {
+    if (a < b) { m = ma; } else { m = mb; }
     return min(a, b);
 }
 
@@ -32,71 +68,127 @@ float sdf_difference(float a, float b) {
     return max(a, -b);
 }
 
-float scene(vec3 p) {
+float scene(vec3 p, out uint material) {
     float dist = MAX_DIST;
+    material = 0;
 
-    dist = sdf_union(dist, sdf_sphere(p - vec3(1.0, 0.0, 0.0)));
-    dist = sdf_union(dist, sdf_sphere(p + vec3(1.0, 0.0, 0.0)));
-    dist = sdf_difference(dist, sdf_sphere(p));
+    p = p_translate(p_rotate_y(p_rotate_x(p, radians(-20)), radians(20)), vec3(0.0, 1.0, 0.0));
+
+    dist = sdf_union(dist, material, sdf_cylinder(p_rotate_x(p_translate(p, vec3(0.0, -0.85, 0.0)), radians(-90)), 1.2, 0.1, 0.1), 2, material);
+    dist = sdf_union(dist, material, sdf_cylinder(p_rotate_x(p_translate(p, vec3(0.0, -1.0, 0.0)), radians(-90)), 1.5, 0.1, 0.1), 1, material);
+
+    dist = sdf_union(dist, material, sdf_cylinder(p_rotate_x(p_translate(p, vec3(0.0, 0.0, -0.9)), radians(10)), 1.2, 0.05, 0.05), 1, material);
+    dist = sdf_union(dist, material, sdf_cylinder(p_translate(p_rotate_x(p_translate(p, vec3(0.0, 0.0, -0.9)), radians(10)), vec3(-0.6, 1.0, 0.0)), 0.5, 0.05, 0.05), 1, material);
+    dist = sdf_union(dist, material, sdf_cylinder(p_translate(p_rotate_x(p_translate(p, vec3(0.0, 0.0, -0.9)), radians(10)), vec3(0.6, 1.0, 0.0)), 0.5, 0.05, 0.05), 1, material);
+    dist = sdf_union(dist, material, sdf_cylinder(p_translate(p_rotate_x(p_translate(p, vec3(0.0, 0.0, -0.9)), radians(10)), vec3(-0.6, 0.6, 0.0)), 0.5, 0.05, 0.05), 1, material);
+    dist = sdf_union(dist, material, sdf_cylinder(p_translate(p_rotate_x(p_translate(p, vec3(0.0, 0.0, -0.9)), radians(10)), vec3(0.6, 0.6, 0.0)), 0.5, 0.05, 0.05), 1, material);
+
+    dist = sdf_union(dist, material, sdf_sphere(p_translate(p_rotate_x(p_translate(p, vec3(0.0, 0.0, -0.9)), radians(10)), vec3(-0.6, 1.0, 0.0)), 0.2), 3, material);
+    dist = sdf_union(dist, material, sdf_sphere(p_translate(p_rotate_x(p_translate(p, vec3(0.0, 0.0, -0.9)), radians(10)), vec3(0.6, 1.0, 0.0)), 0.2), 3, material);
+
+    dist = sdf_union(dist, material, sdf_cylinder(p_translate(p_rotate_y(p_translate(p, vec3(0.0, 0.0, -0.9)), radians(90)), vec3(-0.05, 0.4, 0.0)), 0.1, 0.5, 0.1), 4, material);
+
+    dist = sdf_union(dist, material, sdf_cylinder(p_rotate_x(p_rotate_z(p_translate(p_rotate_y(p, radians(0)), vec3(1.5, -2.0, 0.0)), radians(-10)), radians(-90)), 0.2, 1.0, 0.1), 1, material);
+    dist = sdf_union(dist, material, sdf_cylinder(p_rotate_x(p_rotate_z(p_translate(p_rotate_y(p, radians(90)), vec3(1.5, -2.0, 0.0)), radians(-10)), radians(-90)), 0.2, 1.0, 0.1), 1, material);
+    dist = sdf_union(dist, material, sdf_cylinder(p_rotate_x(p_rotate_z(p_translate(p_rotate_y(p, radians(180)), vec3(1.5, -2.0, 0.0)), radians(-10)), radians(-90)), 0.2, 1.0, 0.1), 1, material);
+    dist = sdf_union(dist, material, sdf_cylinder(p_rotate_x(p_rotate_z(p_translate(p_rotate_y(p, radians(270)), vec3(1.5, -2.0, 0.0)), radians(-10)), radians(-90)), 0.2, 1.0, 0.1), 1, material);
 
     return dist;
 }
 
 vec3 scene_normal(vec3 p) {
+    uint material;
     return normalize(vec3(
-        scene(vec3(p.x + EPSILON, p.y, p.z)) - scene(vec3(p.x - EPSILON, p.y, p.z)),
-        scene(vec3(p.x, p.y + EPSILON, p.z)) - scene(vec3(p.x, p.y - EPSILON, p.z)),
-        scene(vec3(p.x, p.y, p.z + EPSILON)) - scene(vec3(p.x, p.y, p.z - EPSILON))
+        scene(vec3(p.x + EPSILON, p.y, p.z), material) - scene(vec3(p.x - EPSILON, p.y, p.z), material),
+        scene(vec3(p.x, p.y + EPSILON, p.z), material) - scene(vec3(p.x, p.y - EPSILON, p.z), material),
+        scene(vec3(p.x, p.y, p.z + EPSILON), material) - scene(vec3(p.x, p.y, p.z - EPSILON), material)
     ));
 }
 
-float march(vec3 origin, vec3 dir) {
+bool march(vec3 origin, vec3 dir, out vec3 position, out vec3 normal, out uint material) {
     float depth = MIN_DIST;
 
     for (int i = 0; i < MAX_STEPS; i++) {
-        float dist = scene(origin + depth * dir);
-        if (dist < EPSILON) { return depth; }
+        float dist = scene(origin + depth * dir, material);
+        if (dist < EPSILON) {
+            position = origin + depth * dir;
+            normal = scene_normal(position);
+            return true;
+        }
         depth += dist;
-        if (depth >= MAX_DIST) { return MAX_DIST; }
+        if (depth >= MAX_DIST) { return false; }
     }
 
-    return MAX_DIST;
+    return false;
 }
 
 void main() {
     vec3 col = vec3(0.0);
 
+    vec3 light_color = vec3(1.0, 1.0, 1.0);
+
     vec3 ray_dir = normalize(vec3((gl_GlobalInvocationID.xy - vec2(param.width, param.height) / 2.0) * vec2(1.0, ASPECT_RATIO_FACTOR), -float(param.height) / tan(radians(FIELD_OF_VIEW)) / 2.0));
-    vec3 ray_origin = vec3(0.0, 0.0, 3.0);
+    vec3 ray_origin = vec3(0.0, 0.0, 5.0);
 
-    float depth = march(ray_origin, ray_dir);
+    vec3 position;
+    vec3 normal;
+    uint material;
 
-    if (depth + EPSILON < MAX_DIST) {
-        vec3 p = ray_origin + depth * ray_dir;
-        vec3 normal = scene_normal(p);
-
+    if (march(ray_origin, ray_dir, position, normal, material)) {
         vec3 to_light = normalize(vec3(1.0, 1.0, 1.0));
         vec3 reflected_light = normalize(2 * dot(to_light, normal) * normal - to_light);
 
-        float shininess = 2;
+        float shininess = 2.0;
+        float ambient_intensity = 0.3;
+        float diffuse_intensity = 0.5;
+        float specular_intensity = 0.8;
+        vec3 albedo = vec3(1.0, 0.0, 1.0);
 
-        vec3 ambient_intensity = vec3(0.3, 0.3, 0.3);
-        vec3 diffuse_intensity = vec3(0.5, 0.5, 0.5);
-        vec3 specular_intensity = vec3(0.8, 0.8, 0.8);
+        if (material == 1) {
+            shininess = 1.0;
+            ambient_intensity = 0.3;
+            diffuse_intensity = 0.5;
+            specular_intensity = 0.6;
+            albedo = vec3(0.0, 0.8, 0.2);
+        } else if (material == 2) {
+            shininess = 3.0;
+            ambient_intensity = 0.3;
+            diffuse_intensity = 0.8;
+            specular_intensity = 0.6;
+            albedo = vec3(0.7, 0.8, 0.6);
+        } else if (material == 3) {
+            shininess = 3.0;
+            ambient_intensity = 0.3;
+            diffuse_intensity = 0.5;
+            specular_intensity = 0.3;
+            albedo = vec3(0.4, 0.4, 0.8);
+        } else if (material == 4) {
+            shininess = 3.0;
+            ambient_intensity = 0.3;
+            diffuse_intensity = 0.5;
+            specular_intensity = 0.3;
+            albedo = vec3(0.9, 0.2, 0.2);
+        }
 
-        vec3 albedo = (normal + 1.0) / 2.0;
+        vec3 ambient_light = ambient_intensity * light_color;
+        vec3 diffuse_light = diffuse_intensity * light_color;
+        vec3 specular_light = specular_intensity * light_color;
 
         vec3 ambient_reflection = albedo;
         vec3 diffuse_reflection = albedo;
-        vec3 specular_reflection = albedo;
+        vec3 specular_reflection = vec3(1.0, 1.0, 1.0);
 
-        vec3 ambient = ambient_intensity * ambient_reflection;
-        vec3 diffuse = diffuse_intensity * dot(to_light, normal) * diffuse_reflection;
-        vec3 specular = specular_intensity * pow(dot(reflected_light, normalize(ray_origin - p)), shininess) * specular_reflection;
+        vec3 ambient = ambient_light * ambient_reflection;
+        vec3 diffuse = diffuse_light * dot(to_light, normal) * diffuse_reflection;
+        vec3 specular = specular_light * pow(dot(reflected_light, normalize(ray_origin - position)), shininess) * specular_reflection;
 
-        vec3 intensity = ambient + diffuse + specular;
+        vec3 intensity = max(ambient, 0.0) + max(diffuse, 0.0) + max(specular, 0.0);
 
         col = clamp(intensity, 0.0, 1.0);
+    } else {
+        col = mix(vec3(0.5, 0.0, 0.0), vec3(0.8, 0.5, 0.2), abs(sin(radians(gl_GlobalInvocationID.y * 20.0 + cos(radians(gl_GlobalInvocationID.x * 25.0)) * 15.0))));
+        col = mix(col, vec3(0.2, 0.5, 0.8), clamp(sin(radians(gl_GlobalInvocationID.y * 20.0 + cos(radians(gl_GlobalInvocationID.x * 25.0)) * 15.0)) * 0.5, 0.0, 1.0));
+        col = clamp(col, 0.0, 1.0);
     }
 
     imageStore(img, ivec2(gl_GlobalInvocationID.x, param.height - gl_GlobalInvocationID.y - 1), vec4(col, 1.0));
