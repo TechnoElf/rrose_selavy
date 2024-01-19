@@ -17,6 +17,11 @@ namespace rr {
         float a;
     };
 
+    struct ParametersUBO {
+        uint32_t width;
+        uint32_t height;
+    };
+
     struct Vulkan {
         vk::raii::Instance instance;
         vk::raii::DebugUtilsMessengerEXT debug_utils_messenger;

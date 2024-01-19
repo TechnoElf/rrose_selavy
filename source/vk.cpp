@@ -144,8 +144,8 @@ namespace rr {
             });
 
             vk::raii::Buffer buffer = device.createBuffer({
-                .size = 4 * 4,
-                .usage = vk::BufferUsageFlagBits::eStorageBuffer,
+                .size = sizeof(ParametersUBO),
+                .usage = vk::BufferUsageFlagBits::eUniformBuffer,
                 .sharingMode = vk::SharingMode::eExclusive,
                 .queueFamilyIndexCount = static_cast<uint32_t>(queue_family_indices.size()),
                 .pQueueFamilyIndices = queue_family_indices.data(),
@@ -183,7 +183,7 @@ namespace rr {
 
             std::vector<vk::DescriptorPoolSize> descriptor_pool_sizes = {
                 {
-                    .type = vk::DescriptorType::eStorageBuffer,
+                    .type = vk::DescriptorType::eUniformBuffer,
                     .descriptorCount = 1
                 },
                 {
@@ -202,7 +202,7 @@ namespace rr {
             std::vector<vk::DescriptorSetLayoutBinding> descriptor_set_layout_bindings = {
                 {
                     .binding = 0,
-                    .descriptorType = vk::DescriptorType::eStorageBuffer,
+                    .descriptorType = vk::DescriptorType::eUniformBuffer,
                     .descriptorCount = 1,
                     .stageFlags = vk::ShaderStageFlagBits::eCompute
                 },
@@ -228,7 +228,7 @@ namespace rr {
             vk::DescriptorBufferInfo descriptor_buffer_info = {
                 .buffer = *buffer,
                 .offset = 0,
-                .range = 4 * 4
+                .range = sizeof(ParametersUBO)
             };
 
             vk::DescriptorImageInfo descriptor_image_info = {
@@ -243,7 +243,7 @@ namespace rr {
                     .dstBinding = 0,
                     .dstArrayElement = 0,
                     .descriptorCount = 1,
-                    .descriptorType = vk::DescriptorType::eStorageBuffer,
+                    .descriptorType = vk::DescriptorType::eUniformBuffer,
                     .pBufferInfo = &descriptor_buffer_info
                 },
                 {
@@ -317,9 +317,12 @@ namespace rr {
 
     Result<std::vector<RGBA>> Vulkan::run(uint32_t w, uint32_t h) {
         try {
-            std::vector<uint32_t> data = {1, 2, 3, 4};
-            void* buf = this->buffer_device_memory.mapMemory(0, 4 * 4);
-            memcpy(buf, data.data(), 4 * 4);
+            ParametersUBO ubo = {
+                .width = w,
+                .height = h
+            };
+            void* buf = this->buffer_device_memory.mapMemory(0, sizeof(ParametersUBO));
+            memcpy(buf, &ubo, sizeof(ParametersUBO));
             this->buffer_device_memory.unmapMemory();
 
             this->command_buffer.reset();
