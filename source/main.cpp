@@ -2,39 +2,15 @@
  * Created by janis on 2024-01-14
  */
 
-#include <iostream>
+#include <string>
 
-#include <vulkan/vulkan.hpp>
-
-vk::Bool32 vk_debug_callback([[maybe_unused]] VkDebugUtilsMessageSeverityFlagBitsEXT severity,
-                             [[maybe_unused]] VkDebugUtilsMessageTypeFlagsEXT type,
-                             VkDebugUtilsMessengerCallbackDataEXT const* data,
-                             [[maybe_unused]] void* user_data) {
-    auto sev = vk::DebugUtilsMessageSeverityFlagBitsEXT(severity);
-    std::cerr << "[VK] " << to_string(sev) << ": " << data->pMessage << std::endl;
-    if (sev == vk::DebugUtilsMessageSeverityFlagBitsEXT::eError) {
-        abort();
-    }
-    return vk::False;
-}
+#include "vk.h"
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
-    vk::ApplicationInfo app_info("rrose_selavy", 1, "rrose_selavy", 1, VK_API_VERSION_1_3);
-    vk::StructureChain<vk::InstanceCreateInfo, vk::DebugUtilsMessengerCreateInfoEXT> instance_create_info(
-        {
-            {},
-            &app_info},
-        {
-            {},
-            vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
-            vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation,
-            &vk_debug_callback
-        }
-    );
-
-    auto [res, instance] = vk::createInstance(instance_create_info.get());
-
-    instance.destroy();
+    rr::Vulkan vk = rr::Vulkan::try_init().unwrap();
+    rr::Log::info("Vulkan initialised");
+    std::vector<uint32_t> result = vk.run().unwrap();
+    rr::Log::info(("Done " + std::to_string(result[0]) + " " + std::to_string(result[1]) + " " + std::to_string(result[2]) + " " + std::to_string(result[3])).c_str());
 
     return 0;
 }
