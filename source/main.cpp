@@ -9,8 +9,8 @@
 #include "vk.h"
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
-    const uint32_t w = 256;
-    const uint32_t h = 256;
+    const uint32_t w = 71;
+    const uint32_t h = 64;
 
     rr::Vulkan vk = rr::Vulkan::try_init().unwrap();
     rr::Log::info("Vulkan initialised");
