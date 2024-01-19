@@ -9,9 +9,9 @@
 
 namespace rr {
     vk::Bool32 vk_debug_callback([[maybe_unused]] VkDebugUtilsMessageSeverityFlagBitsEXT severity,
-                                 [[maybe_unused]] VkDebugUtilsMessageTypeFlagsEXT type,
-                                 VkDebugUtilsMessengerCallbackDataEXT const* data,
-                                 [[maybe_unused]] void* user_data) {
+        [[maybe_unused]] VkDebugUtilsMessageTypeFlagsEXT type,
+        VkDebugUtilsMessengerCallbackDataEXT const* data,
+        [[maybe_unused]] void* user_data) {
         auto sev = vk::DebugUtilsMessageSeverityFlagBitsEXT(severity);
         std::cerr << "[VK] " << to_string(sev) << ": " << data->pMessage << std::endl;
         if (sev == vk::DebugUtilsMessageSeverityFlagBitsEXT::eError) {
@@ -66,14 +66,14 @@ namespace rr {
             ).get());
 
             vk::raii::DebugUtilsMessengerEXT debug_utils_messenger = instance.createDebugUtilsMessengerEXT({
-                                                                                                               .messageSeverity = vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo
-                                                                                                                   | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning
-                                                                                                                   | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
-                                                                                                               .messageType = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral
-                                                                                                                   | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance
-                                                                                                                   | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation,
-                                                                                                               .pfnUserCallback = &vk_debug_callback
-                                                                                                           });
+                .messageSeverity = vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo
+                    | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning
+                    | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
+                .messageType = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral
+                    | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance
+                    | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation,
+                .pfnUserCallback = &vk_debug_callback
+            });
 
             std::vector<vk::raii::PhysicalDevice> physical_devices = instance.enumeratePhysicalDevices();
 
@@ -86,23 +86,29 @@ namespace rr {
             }};
 
             vk::raii::Device device = physical_devices[0].createDevice({
-                                                                           .queueCreateInfoCount = static_cast<uint32_t>(queue_create_infos.size()),
-                                                                           .pQueueCreateInfos = queue_create_infos.data()
-                                                                       });
+                .queueCreateInfoCount = static_cast<uint32_t>(queue_create_infos.size()),
+                .pQueueCreateInfos = queue_create_infos.data()
+            });
 
             vk::raii::Queue queue = device.getQueue(0, 0);
 
             std::vector<uint32_t> queue_family_indices = {0};
 
-            vk::raii::Buffer buffer = device.createBuffer({
-                                                              .size = 4 * 4,
-                                                              .usage = vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eTransferSrc,
-                                                              .sharingMode = vk::SharingMode::eExclusive,
-                                                              .queueFamilyIndexCount = static_cast<uint32_t>(queue_family_indices.size()),
-                                                              .pQueueFamilyIndices = queue_family_indices.data(),
-                                                          });
+            vk::raii::Image image = device.createImage({
+                .imageType = vk::ImageType::e2D,
+                .format = vk::Format::eR32G32B32A32Sfloat,
+                .extent = vk::Extent3D(4, 4, 1),
+                .mipLevels = 1,
+                .arrayLayers = 1,
+                .tiling = vk::ImageTiling::eLinear,
+                .usage = vk::ImageUsageFlagBits::eStorage,
+                .sharingMode = vk::SharingMode::eExclusive,
+                .queueFamilyIndexCount = static_cast<uint32_t>(queue_family_indices.size()),
+                .pQueueFamilyIndices = queue_family_indices.data(),
+                .initialLayout = vk::ImageLayout::eUndefined,
+            });
 
-            vk::MemoryRequirements memory_requirements = buffer.getMemoryRequirements();
+            vk::MemoryRequirements memory_requirements = image.getMemoryRequirements();
             uint32_t memory_type = 0;
             vk::PhysicalDeviceMemoryProperties memory_properties = physical_devices[0].getMemoryProperties();
             for (uint32_t i = 0; i < memory_properties.memoryTypeCount; i++) {
@@ -114,37 +120,84 @@ namespace rr {
                 }
             }
 
-            vk::raii::DeviceMemory device_memory = device.allocateMemory({
-                                                                             .allocationSize = 4 * 4,
-                                                                             .memoryTypeIndex = memory_type,
-                                                                         });
+            vk::raii::DeviceMemory image_device_memory = device.allocateMemory({
+                .allocationSize = memory_requirements.size,
+                .memoryTypeIndex = memory_type,
+            });
 
-            buffer.bindMemory(*device_memory, 0);
+            image.bindMemory(*image_device_memory, 0);
+
+            vk::raii::Sampler sampler = device.createSampler({
+            });
+
+            vk::raii::ImageView image_view = device.createImageView({
+                .image = *image,
+                .viewType = vk::ImageViewType::e2D,
+                .format = vk::Format::eR32G32B32A32Sfloat,
+                .subresourceRange = {
+                    .aspectMask = vk::ImageAspectFlagBits::eColor,
+                    .baseMipLevel = 0,
+                    .levelCount = 1,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1
+                }
+            });
+
+            vk::raii::Buffer buffer = device.createBuffer({
+                .size = 4 * 4,
+                .usage = vk::BufferUsageFlagBits::eStorageBuffer,
+                .sharingMode = vk::SharingMode::eExclusive,
+                .queueFamilyIndexCount = static_cast<uint32_t>(queue_family_indices.size()),
+                .pQueueFamilyIndices = queue_family_indices.data(),
+            });
+
+            memory_requirements = buffer.getMemoryRequirements();
+            memory_type = 0;
+            memory_properties = physical_devices[0].getMemoryProperties();
+            for (uint32_t i = 0; i < memory_properties.memoryTypeCount; i++) {
+                if (memory_requirements.memoryTypeBits & (1 << i)) {
+                    if (memory_properties.memoryTypes[i].propertyFlags & vk::MemoryPropertyFlagBits::eHostVisible &&
+                        memory_properties.memoryTypes[i].propertyFlags & vk::MemoryPropertyFlagBits::eHostCoherent) {
+                        memory_type = i;
+                    }
+                }
+            }
+
+            vk::raii::DeviceMemory buffer_device_memory = device.allocateMemory({
+                .allocationSize = memory_requirements.size,
+                .memoryTypeIndex = memory_type,
+            });
+
+            buffer.bindMemory(*buffer_device_memory, 0);
 
             vk::raii::CommandPool command_pool = device.createCommandPool({
-                                                                              .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
-                                                                              .queueFamilyIndex = 0
-                                                                          });
+                .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+                .queueFamilyIndex = 0
+            });
 
             std::vector<vk::raii::CommandBuffer> command_buffers = device.allocateCommandBuffers({
-                                                                                                     .commandPool = *command_pool,
-                                                                                                     .level = vk::CommandBufferLevel::ePrimary,
-                                                                                                     .commandBufferCount = 1
-                                                                                                 });
+                .commandPool = *command_pool,
+                .level = vk::CommandBufferLevel::ePrimary,
+                .commandBufferCount = 1
+            });
 
             std::vector<vk::DescriptorPoolSize> descriptor_pool_sizes = {
                 {
                     .type = vk::DescriptorType::eStorageBuffer,
                     .descriptorCount = 1
+                },
+                {
+                    .type = vk::DescriptorType::eStorageImage,
+                    .descriptorCount = 1
                 }
             };
 
             vk::raii::DescriptorPool descriptor_pool = device.createDescriptorPool({
-                                                                                       .flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
-                                                                                       .maxSets = 1,
-                                                                                       .poolSizeCount = static_cast<uint32_t>(descriptor_pool_sizes.size()),
-                                                                                       .pPoolSizes = descriptor_pool_sizes.data()
-                                                                                   });
+                .flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
+                .maxSets = 1,
+                .poolSizeCount = static_cast<uint32_t>(descriptor_pool_sizes.size()),
+                .pPoolSizes = descriptor_pool_sizes.data()
+            });
 
             std::vector<vk::DescriptorSetLayoutBinding> descriptor_set_layout_bindings = {
                 {
@@ -152,24 +205,36 @@ namespace rr {
                     .descriptorType = vk::DescriptorType::eStorageBuffer,
                     .descriptorCount = 1,
                     .stageFlags = vk::ShaderStageFlagBits::eCompute
+                },
+                {
+                    .binding = 1,
+                    .descriptorType = vk::DescriptorType::eStorageImage,
+                    .descriptorCount = 1,
+                    .stageFlags = vk::ShaderStageFlagBits::eCompute
                 }
             };
 
             vk::raii::DescriptorSetLayout descriptor_set_layout = device.createDescriptorSetLayout({
-                                                                                                       .bindingCount = static_cast<uint32_t>(descriptor_set_layout_bindings.size()),
-                                                                                                       .pBindings = descriptor_set_layout_bindings.data()
-                                                                                                   });
+                .bindingCount = static_cast<uint32_t>(descriptor_set_layout_bindings.size()),
+                .pBindings = descriptor_set_layout_bindings.data()
+            });
 
             std::vector<vk::raii::DescriptorSet> descriptor_sets = device.allocateDescriptorSets({
-                                                                                                     .descriptorPool = *descriptor_pool,
-                                                                                                     .descriptorSetCount = 1,
-                                                                                                     .pSetLayouts = &*descriptor_set_layout
-                                                                                                 });
+                .descriptorPool = *descriptor_pool,
+                .descriptorSetCount = 1,
+                .pSetLayouts = &*descriptor_set_layout
+            });
 
             vk::DescriptorBufferInfo descriptor_buffer_info = {
                 .buffer = *buffer,
                 .offset = 0,
                 .range = 4 * 4
+            };
+
+            vk::DescriptorImageInfo descriptor_image_info = {
+                .sampler = *sampler,
+                .imageView = *image_view,
+                .imageLayout = vk::ImageLayout::eGeneral
             };
 
             std::vector<vk::WriteDescriptorSet> write_descriptor_sets = {
@@ -180,6 +245,14 @@ namespace rr {
                     .descriptorCount = 1,
                     .descriptorType = vk::DescriptorType::eStorageBuffer,
                     .pBufferInfo = &descriptor_buffer_info
+                },
+                {
+                    .dstSet = *descriptor_sets[0],
+                    .dstBinding = 1,
+                    .dstArrayElement = 0,
+                    .descriptorCount = 1,
+                    .descriptorType = vk::DescriptorType::eStorageImage,
+                    .pImageInfo = &descriptor_image_info
                 }
             };
 
@@ -193,14 +266,14 @@ namespace rr {
             file.close();
 
             vk::raii::ShaderModule shader_module = device.createShaderModule({
-                                                                                 .codeSize = buf.size(),
-                                                                                 .pCode = reinterpret_cast<const uint32_t*>(buf.data())
-                                                                             });
+                .codeSize = buf.size(),
+                .pCode = reinterpret_cast<const uint32_t*>(buf.data())
+            });
 
             vk::raii::PipelineLayout pipeline_layout = device.createPipelineLayout({
-                                                                                       .setLayoutCount = 1,
-                                                                                       .pSetLayouts = &*descriptor_set_layout
-                                                                                   });
+                .setLayoutCount = 1,
+                .pSetLayouts = &*descriptor_set_layout
+            });
 
             vk::raii::PipelineCache pipeline_cache = device.createPipelineCache({});
 
@@ -214,43 +287,60 @@ namespace rr {
             });
 
             return Result<Vulkan>({
-                                      .instance = std::move(instance),
-                                      .debug_utils_messenger = std::move(debug_utils_messenger),
-                                      .physical_devices = std::move(physical_devices),
-                                      .device = std::move(device),
-                                      .queue = std::move(queue),
-                                      .shader_module = std::move(shader_module),
-                                      .pipeline_layout = std::move(pipeline_layout),
-                                      .pipeline_cache = std::move(pipeline_cache),
-                                      .pipeline = std::move(pipeline),
-                                      .buffer = std::move(buffer),
-                                      .device_memory = std::move(device_memory),
-                                      .command_pool = std::move(command_pool),
-                                      .command_buffer = std::move(command_buffers[0]),
-                                      .descriptor_pool = std::move(descriptor_pool),
-                                      .descriptor_set_layout = std::move(descriptor_set_layout),
-                                      .descriptor_sets = std::move(descriptor_sets)
-                                  });
+                .instance = std::move(instance),
+                .debug_utils_messenger = std::move(debug_utils_messenger),
+                .physical_devices = std::move(physical_devices),
+                .device = std::move(device),
+                .queue = std::move(queue),
+                .shader_module = std::move(shader_module),
+                .pipeline_layout = std::move(pipeline_layout),
+                .pipeline_cache = std::move(pipeline_cache),
+                .pipeline = std::move(pipeline),
+                .image = std::move(image),
+                .image_device_memory = std::move(image_device_memory),
+                .sampler = std::move(sampler),
+                .image_view = std::move(image_view),
+                .buffer = std::move(buffer),
+                .buffer_device_memory = std::move(buffer_device_memory),
+                .command_pool = std::move(command_pool),
+                .command_buffer = std::move(command_buffers[0]),
+                .descriptor_pool = std::move(descriptor_pool),
+                .descriptor_set_layout = std::move(descriptor_set_layout),
+                .descriptor_sets = std::move(descriptor_sets)
+            });
         } catch (std::exception& e) {
             return Result<Vulkan>({
-                                      .kind = ErrorKind::Vulkan
-                                  });
+                .kind = ErrorKind::Vulkan
+            });
         }
     }
 
-    Result<std::vector<uint32_t>> Vulkan::run() {
+    Result<std::vector<RGBA>> Vulkan::run(uint32_t w, uint32_t h) {
         try {
-            std::vector<uint32_t> data = {9, 9, 9, 9};
-
-            void* buf = this->device_memory.mapMemory(0, 4 * 4);
+            std::vector<uint32_t> data = {1, 2, 3, 4};
+            void* buf = this->buffer_device_memory.mapMemory(0, 4 * 4);
             memcpy(buf, data.data(), 4 * 4);
-            this->device_memory.unmapMemory();
+            this->buffer_device_memory.unmapMemory();
 
             this->command_buffer.reset();
             this->command_buffer.begin({});
             this->command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, *this->pipeline);
             this->command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *this->pipeline_layout, 0, {*this->descriptor_sets[0]}, nullptr);
-            this->command_buffer.dispatch(4, 1, 1);
+            this->command_buffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eComputeShader, {}, {}, {}, {
+                {
+                    .oldLayout = vk::ImageLayout::eUndefined,
+                    .newLayout = vk::ImageLayout::eGeneral,
+                    .image = *image,
+                    .subresourceRange = {
+                        .aspectMask = vk::ImageAspectFlagBits::eColor,
+                        .baseMipLevel = 0,
+                        .levelCount = 1,
+                        .baseArrayLayer = 0,
+                        .layerCount = 1
+                    }
+                }
+            });
+            this->command_buffer.dispatch(w, h, 1);
             this->command_buffer.end();
 
             std::vector<vk::CommandBuffer> command_buffers = {
@@ -266,15 +356,17 @@ namespace rr {
 
             this->device.waitIdle();
 
-            buf = this->device_memory.mapMemory(0, 4 * 4);
-            memcpy(data.data(), buf, 4 * 4);
-            this->device_memory.unmapMemory();
+            std::vector<RGBA> img;
+            img.resize(w * h);
+            buf = this->image_device_memory.mapMemory(0, w * h * sizeof(RGBA));
+            memcpy(img.data(), buf, w * h * sizeof(RGBA));
+            this->image_device_memory.unmapMemory();
 
-            return Result<std::vector<uint32_t>>(std::move(data));
+            return Result<std::vector<RGBA>>(std::move(img));
         } catch (std::exception& e) {
-            return Result<std::vector<uint32_t>>({
-                                       .kind = ErrorKind::Vulkan
-                                   });
+            return Result<std::vector<RGBA>>({
+                .kind = ErrorKind::Vulkan
+            });
         }
     }
 }

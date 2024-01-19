@@ -10,6 +10,13 @@
 #include "error.h"
 
 namespace rr {
+    struct RGBA {
+        float r;
+        float g;
+        float b;
+        float a;
+    };
+
     struct Vulkan {
         vk::raii::Instance instance;
         vk::raii::DebugUtilsMessengerEXT debug_utils_messenger;
@@ -20,8 +27,12 @@ namespace rr {
         vk::raii::PipelineLayout pipeline_layout;
         vk::raii::PipelineCache pipeline_cache;
         vk::raii::Pipeline pipeline;
+        vk::raii::Image image;
+        vk::raii::DeviceMemory image_device_memory;
+        vk::raii::Sampler sampler;
+        vk::raii::ImageView image_view;
         vk::raii::Buffer buffer;
-        vk::raii::DeviceMemory device_memory;
+        vk::raii::DeviceMemory buffer_device_memory;
         vk::raii::CommandPool command_pool;
         vk::raii::CommandBuffer command_buffer;
         vk::raii::DescriptorPool descriptor_pool;
@@ -33,6 +44,6 @@ namespace rr {
     public:
         static Result<Vulkan> try_init();
 
-        Result<std::vector<uint32_t>> run();
+        Result<std::vector<RGBA>> run(uint32_t w, uint32_t h);
     };
 }
