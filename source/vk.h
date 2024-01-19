@@ -32,10 +32,6 @@ namespace rr {
         vk::raii::PipelineLayout pipeline_layout;
         vk::raii::PipelineCache pipeline_cache;
         vk::raii::Pipeline pipeline;
-        vk::raii::Image image;
-        vk::raii::DeviceMemory image_device_memory;
-        vk::raii::Sampler sampler;
-        vk::raii::ImageView image_view;
         vk::raii::Buffer buffer;
         vk::raii::DeviceMemory buffer_device_memory;
         vk::raii::CommandPool command_pool;

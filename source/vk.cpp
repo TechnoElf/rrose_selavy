@@ -94,55 +94,6 @@ namespace rr {
 
             std::vector<uint32_t> queue_family_indices = {0};
 
-            vk::raii::Image image = device.createImage({
-                .imageType = vk::ImageType::e2D,
-                .format = vk::Format::eR32G32B32A32Sfloat,
-                .extent = vk::Extent3D(4, 4, 1),
-                .mipLevels = 1,
-                .arrayLayers = 1,
-                .tiling = vk::ImageTiling::eLinear,
-                .usage = vk::ImageUsageFlagBits::eStorage,
-                .sharingMode = vk::SharingMode::eExclusive,
-                .queueFamilyIndexCount = static_cast<uint32_t>(queue_family_indices.size()),
-                .pQueueFamilyIndices = queue_family_indices.data(),
-                .initialLayout = vk::ImageLayout::eUndefined,
-            });
-
-            vk::MemoryRequirements memory_requirements = image.getMemoryRequirements();
-            uint32_t memory_type = 0;
-            vk::PhysicalDeviceMemoryProperties memory_properties = physical_devices[0].getMemoryProperties();
-            for (uint32_t i = 0; i < memory_properties.memoryTypeCount; i++) {
-                if (memory_requirements.memoryTypeBits & (1 << i)) {
-                    if (memory_properties.memoryTypes[i].propertyFlags & vk::MemoryPropertyFlagBits::eHostVisible &&
-                        memory_properties.memoryTypes[i].propertyFlags & vk::MemoryPropertyFlagBits::eHostCoherent) {
-                        memory_type = i;
-                    }
-                }
-            }
-
-            vk::raii::DeviceMemory image_device_memory = device.allocateMemory({
-                .allocationSize = memory_requirements.size,
-                .memoryTypeIndex = memory_type,
-            });
-
-            image.bindMemory(*image_device_memory, 0);
-
-            vk::raii::Sampler sampler = device.createSampler({
-            });
-
-            vk::raii::ImageView image_view = device.createImageView({
-                .image = *image,
-                .viewType = vk::ImageViewType::e2D,
-                .format = vk::Format::eR32G32B32A32Sfloat,
-                .subresourceRange = {
-                    .aspectMask = vk::ImageAspectFlagBits::eColor,
-                    .baseMipLevel = 0,
-                    .levelCount = 1,
-                    .baseArrayLayer = 0,
-                    .layerCount = 1
-                }
-            });
-
             vk::raii::Buffer buffer = device.createBuffer({
                 .size = sizeof(ParametersUBO),
                 .usage = vk::BufferUsageFlagBits::eUniformBuffer,
@@ -151,9 +102,9 @@ namespace rr {
                 .pQueueFamilyIndices = queue_family_indices.data(),
             });
 
-            memory_requirements = buffer.getMemoryRequirements();
-            memory_type = 0;
-            memory_properties = physical_devices[0].getMemoryProperties();
+            vk::MemoryRequirements memory_requirements = buffer.getMemoryRequirements();
+            uint32_t memory_type = 0;
+            vk::PhysicalDeviceMemoryProperties memory_properties = physical_devices[0].getMemoryProperties();
             for (uint32_t i = 0; i < memory_properties.memoryTypeCount; i++) {
                 if (memory_requirements.memoryTypeBits & (1 << i)) {
                     if (memory_properties.memoryTypes[i].propertyFlags & vk::MemoryPropertyFlagBits::eHostVisible &&
@@ -225,39 +176,6 @@ namespace rr {
                 .pSetLayouts = &*descriptor_set_layout
             });
 
-            vk::DescriptorBufferInfo descriptor_buffer_info = {
-                .buffer = *buffer,
-                .offset = 0,
-                .range = sizeof(ParametersUBO)
-            };
-
-            vk::DescriptorImageInfo descriptor_image_info = {
-                .sampler = *sampler,
-                .imageView = *image_view,
-                .imageLayout = vk::ImageLayout::eGeneral
-            };
-
-            std::vector<vk::WriteDescriptorSet> write_descriptor_sets = {
-                {
-                    .dstSet = *descriptor_sets[0],
-                    .dstBinding = 0,
-                    .dstArrayElement = 0,
-                    .descriptorCount = 1,
-                    .descriptorType = vk::DescriptorType::eUniformBuffer,
-                    .pBufferInfo = &descriptor_buffer_info
-                },
-                {
-                    .dstSet = *descriptor_sets[0],
-                    .dstBinding = 1,
-                    .dstArrayElement = 0,
-                    .descriptorCount = 1,
-                    .descriptorType = vk::DescriptorType::eStorageImage,
-                    .pImageInfo = &descriptor_image_info
-                }
-            };
-
-            device.updateDescriptorSets(write_descriptor_sets, {});
-
             std::ifstream file = std::ifstream("main.comp.spv", std::ios::ate | std::ios::binary);
             size_t size = file.tellg();
             std::vector<char> buf = std::vector<char>(size);
@@ -296,10 +214,6 @@ namespace rr {
                 .pipeline_layout = std::move(pipeline_layout),
                 .pipeline_cache = std::move(pipeline_cache),
                 .pipeline = std::move(pipeline),
-                .image = std::move(image),
-                .image_device_memory = std::move(image_device_memory),
-                .sampler = std::move(sampler),
-                .image_view = std::move(image_view),
                 .buffer = std::move(buffer),
                 .buffer_device_memory = std::move(buffer_device_memory),
                 .command_pool = std::move(command_pool),
@@ -317,6 +231,90 @@ namespace rr {
 
     Result<std::vector<RGBA>> Vulkan::run(uint32_t w, uint32_t h) {
         try {
+            std::vector<uint32_t> queue_family_indices = {0};
+
+            vk::raii::Image image = device.createImage({
+                .imageType = vk::ImageType::e2D,
+                .format = vk::Format::eR32G32B32A32Sfloat,
+                .extent = vk::Extent3D(w, h, 1),
+                .mipLevels = 1,
+                .arrayLayers = 1,
+                .tiling = vk::ImageTiling::eLinear,
+                .usage = vk::ImageUsageFlagBits::eStorage,
+                .sharingMode = vk::SharingMode::eExclusive,
+                .queueFamilyIndexCount = static_cast<uint32_t>(queue_family_indices.size()),
+                .pQueueFamilyIndices = queue_family_indices.data(),
+                .initialLayout = vk::ImageLayout::eUndefined,
+            });
+
+            vk::MemoryRequirements memory_requirements = image.getMemoryRequirements();
+            uint32_t memory_type = 0;
+            vk::PhysicalDeviceMemoryProperties memory_properties = this->physical_devices[0].getMemoryProperties();
+            for (uint32_t i = 0; i < memory_properties.memoryTypeCount; i++) {
+                if (memory_requirements.memoryTypeBits & (1 << i)) {
+                    if (memory_properties.memoryTypes[i].propertyFlags & vk::MemoryPropertyFlagBits::eHostVisible &&
+                        memory_properties.memoryTypes[i].propertyFlags & vk::MemoryPropertyFlagBits::eHostCoherent) {
+                        memory_type = i;
+                    }
+                }
+            }
+
+            vk::raii::DeviceMemory image_device_memory = this->device.allocateMemory({
+                .allocationSize = memory_requirements.size,
+                .memoryTypeIndex = memory_type,
+            });
+
+            image.bindMemory(*image_device_memory, 0);
+
+            vk::raii::Sampler sampler = this->device.createSampler({
+            });
+
+            vk::raii::ImageView image_view = this->device.createImageView({
+                .image = *image,
+                .viewType = vk::ImageViewType::e2D,
+                .format = vk::Format::eR32G32B32A32Sfloat,
+                .subresourceRange = {
+                    .aspectMask = vk::ImageAspectFlagBits::eColor,
+                    .baseMipLevel = 0,
+                    .levelCount = 1,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1
+                }
+            });
+
+            vk::DescriptorBufferInfo descriptor_buffer_info = {
+                .buffer = *this->buffer,
+                .offset = 0,
+                .range = sizeof(ParametersUBO)
+            };
+
+            vk::DescriptorImageInfo descriptor_image_info = {
+                .sampler = *sampler,
+                .imageView = *image_view,
+                .imageLayout = vk::ImageLayout::eGeneral
+            };
+
+            std::vector<vk::WriteDescriptorSet> write_descriptor_sets = {
+                {
+                    .dstSet = *this->descriptor_sets[0],
+                    .dstBinding = 0,
+                    .dstArrayElement = 0,
+                    .descriptorCount = 1,
+                    .descriptorType = vk::DescriptorType::eUniformBuffer,
+                    .pBufferInfo = &descriptor_buffer_info
+                },
+                {
+                    .dstSet = *this->descriptor_sets[0],
+                    .dstBinding = 1,
+                    .dstArrayElement = 0,
+                    .descriptorCount = 1,
+                    .descriptorType = vk::DescriptorType::eStorageImage,
+                    .pImageInfo = &descriptor_image_info
+                }
+            };
+
+            device.updateDescriptorSets(write_descriptor_sets, {});
+
             ParametersUBO ubo = {
                 .width = w,
                 .height = h
@@ -361,9 +359,9 @@ namespace rr {
 
             std::vector<RGBA> img;
             img.resize(w * h);
-            buf = this->image_device_memory.mapMemory(0, w * h * sizeof(RGBA));
+            buf = image_device_memory.mapMemory(0, w * h * sizeof(RGBA));
             memcpy(img.data(), buf, w * h * sizeof(RGBA));
-            this->image_device_memory.unmapMemory();
+            image_device_memory.unmapMemory();
 
             return Result<std::vector<RGBA>>(std::move(img));
         } catch (std::exception& e) {
